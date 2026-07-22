@@ -1,7 +1,10 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../shared/lib/supabaseClient'
 import { useAuthStore } from './authStore'
+import { Button, CardHeader } from '../../shared/components'
+import { ThemeToggle } from '../../shared/components/ThemeToggle'
 
 function readableAuthError(message: string) {
   const value = message.toLowerCase()
@@ -12,8 +15,79 @@ function readableAuthError(message: string) {
   return 'Une erreur est survenue. Vérifie tes informations et réessaie.'
 }
 
-function AuthLayout({ title, children, footer }: { title: string; children: ReactNode; footer: ReactNode }) {
-  return <main className="auth-page"><section className="auth-card"><p className="eyebrow">CALLIBRATE</p><h1>{title}</h1>{children}<p className="auth-footer">{footer}</p></section></main>
+function AuthLayout({ title, subtitle, children, footer }: { title: string; subtitle?: string; children: ReactNode; footer: ReactNode }) {
+  return (
+    <main className="auth-page">
+      <ThemeToggle />
+      <motion.section
+        className="glass-card auth-card"
+        initial={{ opacity: 0, y: 18, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
+      >
+        <CardHeader>
+          <motion.p
+            className="eyebrow"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1, duration: 0.4 }}
+          >
+            CALLIBRATE
+          </motion.p>
+          <motion.h1
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15, duration: 0.45 }}
+          >
+            {title}
+          </motion.h1>
+          {subtitle && (
+            <motion.p
+              className="subtitle"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.22, duration: 0.45 }}
+            >
+              {subtitle}
+            </motion.p>
+          )}
+        </CardHeader>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25, duration: 0.45 }}
+        >
+          {children}
+        </motion.div>
+
+        <motion.p
+          className="auth-footer"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.35, duration: 0.4 }}
+        >
+          {footer}
+        </motion.p>
+      </motion.section>
+
+      {/* Decorative warm accent dot - only in dark mode visible subtle */}
+      <div
+        aria-hidden
+        style={{
+          position: 'fixed',
+          bottom: '6%',
+          left: '8%',
+          width: 140,
+          height: 140,
+          background: 'radial-gradient(circle, rgba(var(--color-accent-warm-rgb),0.22), transparent 70%)',
+          filter: 'blur(18px)',
+          pointerEvents: 'none',
+          zIndex: -1,
+        }}
+      />
+    </main>
+  )
 }
 
 export function SignUpPage() {
@@ -36,14 +110,73 @@ export function SignUpPage() {
     setInfo('Ton compte a été créé. Consulte tes e-mails pour le confirmer, puis connecte-toi.')
   }
 
-  return <AuthLayout title="Crée ton compte" footer={<>Déjà inscrit·e ? <Link to="/connexion">Se connecter</Link></>}>
-    <form onSubmit={submit} noValidate className="stack-form">
-      <label>Adresse e-mail<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" /></label>
-      <label>Mot de passe<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} autoComplete="new-password" /><small>6 caractères minimum</small></label>
-      {error && <p className="form-error" role="alert">{error}</p>}{info && <p className="form-info">{info}</p>}
-      <button disabled={submitting}>{submitting ? 'Création…' : 'Créer mon compte'}</button>
-    </form>
-  </AuthLayout>
+  return (
+    <AuthLayout
+      title="Crée ton compte"
+      subtitle="Rejoins Callibrate et commence ton parcours sur-mesure."
+      footer={<>Déjà inscrit·e ? <Link to="/connexion">Se connecter</Link></>}
+    >
+      <form onSubmit={submit} noValidate className="stack-form">
+        <div style={{ display: 'grid', gap: 14 }}>
+          <label>
+            Adresse e-mail
+            <input
+              className="input-base"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+              placeholder="toi@exemple.com"
+            />
+          </label>
+          <label>
+            Mot de passe
+            <input
+              className="input-base"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              autoComplete="new-password"
+              placeholder="••••••••"
+            />
+            <small>6 caractères minimum, avec un peu de peps</small>
+          </label>
+        </div>
+
+        <AnimatePresence mode="wait">
+          {error && (
+            <motion.p
+              className="form-error"
+              role="alert"
+              initial={{ opacity: 0, y: -6, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.28 }}
+            >
+              {error}
+            </motion.p>
+          )}
+          {info && (
+            <motion.p
+              className="form-info"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+            >
+              {info}
+            </motion.p>
+          )}
+        </AnimatePresence>
+
+        <Button type="submit" variant="primary" size="lg" disabled={submitting} isLoading={submitting} style={{ width: '100%', marginTop: 6 }}>
+          {submitting ? 'Création…' : 'Créer mon compte'}
+        </Button>
+      </form>
+    </AuthLayout>
+  )
 }
 
 export function SignInPage() {
@@ -64,12 +197,58 @@ export function SignInPage() {
     navigate((location.state as { from?: string } | null)?.from || '/onboarding', { replace: true })
   }
 
-  return <AuthLayout title="Bon retour" footer={<>Pas encore de compte ? <Link to="/inscription">S'inscrire</Link></>}>
-    <form onSubmit={submit} noValidate className="stack-form">
-      <label>Adresse e-mail<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" /></label>
-      <label>Mot de passe<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" /></label>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <button disabled={submitting}>{submitting ? 'Connexion…' : 'Se connecter'}</button>
-    </form>
-  </AuthLayout>
+  return (
+    <AuthLayout
+      title="Bon retour"
+      subtitle="Content de te revoir. On reprend là où tu t'étais arrêté·e."
+      footer={<>Pas encore de compte ? <Link to="/inscription">S'inscrire</Link></>}
+    >
+      <form onSubmit={submit} noValidate className="stack-form">
+        <div style={{ display: 'grid', gap: 14 }}>
+          <label>
+            Adresse e-mail
+            <input
+              className="input-base"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+              placeholder="toi@exemple.com"
+            />
+          </label>
+          <label>
+            Mot de passe
+            <input
+              className="input-base"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+              placeholder="••••••••"
+            />
+          </label>
+        </div>
+
+        <AnimatePresence>
+          {error && (
+            <motion.p
+              className="form-error"
+              role="alert"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+            >
+              {error}
+            </motion.p>
+          )}
+        </AnimatePresence>
+
+        <Button type="submit" variant="primary" size="lg" disabled={submitting} isLoading={submitting} style={{ width: '100%', marginTop: 6 }}>
+          {submitting ? 'Connexion…' : 'Se connecter'}
+        </Button>
+      </form>
+    </AuthLayout>
+  )
 }
