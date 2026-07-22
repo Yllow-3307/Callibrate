@@ -1,0 +1,1115 @@
+diff --git a/package.json b/package.json
+index 3e8f6f7..70a4803 100644
+--- a/package.json
++++ b/package.json
+@@ -6,6 +6,8 @@
+   "scripts": {
+     "dev": "vite",
+     "build": "tsc -b && vite build",
++    "test": "vitest run",
++    "test:watch": "vitest",
+     "lint": "oxlint",
+     "preview": "vite preview"
+   },
+@@ -18,15 +20,19 @@
+     "zustand": "^5.0.14"
+   },
+   "devDependencies": {
++    "@testing-library/jest-dom": "^6.9.1",
++    "@testing-library/react": "^16.3.2",
+     "@types/node": "^24.13.2",
+     "@types/react": "^19.2.17",
+     "@types/react-dom": "^19.2.3",
+     "@vitejs/plugin-react": "^6.0.3",
+     "autoprefixer": "^10.5.4",
++    "jsdom": "^29.1.1",
+     "oxlint": "^1.71.0",
+     "postcss": "^8.5.22",
+     "tailwindcss": "^3.4.19",
+     "typescript": "~6.0.2",
+-    "vite": "^8.1.1"
++    "vite": "^8.1.1",
++    "vitest": "^4.1.10"
+   }
+ }
+diff --git a/src/features/auth/AuthPages.tsx b/src/features/auth/AuthPages.tsx
+index 90437ed..0365649 100644
+--- a/src/features/auth/AuthPages.tsx
++++ b/src/features/auth/AuthPages.tsx
+@@ -179,6 +179,15 @@ export function SignUpPage() {
+   )
+ }
+ 
++/** Vérifie si l'utilisateur a déjà un profil complet et un programme généré. */
++async function hasCompletedProfile(userId: string): Promise<boolean> {
++  const [profileResult, programResult] = await Promise.all([
++    supabase.from('profiles').select('id').eq('user_id', userId).limit(1).maybeSingle(),
++    supabase.from('programs').select('id').eq('user_id', userId).limit(1).maybeSingle(),
++  ])
++  return Boolean(profileResult.data && programResult.data)
++}
++
+ export function SignInPage() {
+   const navigate = useNavigate()
+   const location = useLocation()
+@@ -187,14 +196,32 @@ export function SignInPage() {
+   const [password, setPassword] = useState('')
+   const [error, setError] = useState('')
+   const [submitting, setSubmitting] = useState(false)
+-  if (user) return <Navigate to={(location.state as { from?: string } | null)?.from || '/onboarding'} replace />
++
++  // Si l'utilisateur est déjà connecté, vérifier son état pour la bonne redirection
++  if (user) {
++    // On ne peut pas utiliser async dans le render, donc on redirige vers /connexion
++    // qui va immédiatement re-vérifier. On utilise plutôt un composant wrapper.
++    // Pour simplifier, on utilise la logique async dans le submit.
++    const from = (location.state as { from?: string } | null)?.from
++    if (from) return <Navigate to={from} replace />
++    // Pas de "from" → on ne sait pas encore, on laisse le submit gérer
++    return <Navigate to="/onboarding" replace />
++  }
+ 
+   async function submit(event: FormEvent) {
+     event.preventDefault(); setError(''); setSubmitting(true)
+-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
++    const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+     setSubmitting(false)
+     if (signInError) { setError(readableAuthError(signInError.message)); return }
+-    navigate((location.state as { from?: string } | null)?.from || '/onboarding', { replace: true })
++    const from = (location.state as { from?: string } | null)?.from
++    if (from) { navigate(from, { replace: true }); return }
++    // Vérifier si l'utilisateur a déjà un profil complet + programme
++    if (data.user) {
++      const complete = await hasCompletedProfile(data.user.id)
++      navigate(complete ? '/tableau-de-bord' : '/onboarding', { replace: true })
++      return
++    }
++    navigate('/onboarding', { replace: true })
+   }
+ 
+   return (
+diff --git a/src/features/onboarding/OnboardingWizard.tsx b/src/features/onboarding/OnboardingWizard.tsx
+index 565eecb..1352d92 100644
+--- a/src/features/onboarding/OnboardingWizard.tsx
++++ b/src/features/onboarding/OnboardingWizard.tsx
+@@ -7,14 +7,23 @@ import { Button } from '../../shared/components/Button'
+ import { Progress, StepIndicator } from '../../shared/components/Progress'
+ import { ThemeToggle } from '../../shared/components/ThemeToggle'
+ 
++type Indisponibilite = { debut: string; fin: string; label: string }
++
+ type FormData = {
+   age: string; sexe: string; poids: string; taille: string; niveauSport: string
+-  objectif: string; equipements: string[]; detailsPerso: string; endurance: string
+-  reveil: string; travailDebut: string; travailFin: string; coucher: string; preferenceHoraire: string; duree: string; frequence: string
++  objectif: string; equipements: string[]; detailsPerso: string[]; detailsPersoAutre: string; endurance: string[]
++  reveil: string; travailDebut: string; travailFin: string; coucher: string; preferenceHoraire: string; duree: string; frequence: string; indisponibilites: Indisponibilite[]
+   niveauCuisine: string; tempsCuisine: string; preferences: string; allergies: string; budget: string; petitDejeuner: string; dejeuner: string; diner: string
+ }
+-const initialData: FormData = { age: '', sexe: '', poids: '', taille: '', niveauSport: '', objectif: '', equipements: [], detailsPerso: '', endurance: '', reveil: '', travailDebut: '', travailFin: '', coucher: '', preferenceHoraire: '', duree: '', frequence: '', niveauCuisine: '', tempsCuisine: '', preferences: '', allergies: '', budget: '', petitDejeuner: '', dejeuner: '', diner: '' }
++const initialData: FormData = {
++  age: '', sexe: '', poids: '', taille: '', niveauSport: '',
++  objectif: '', equipements: [], detailsPerso: [], detailsPersoAutre: '', endurance: [],
++  reveil: '', travailDebut: '', travailFin: '', coucher: '', preferenceHoraire: '', duree: '', frequence: '', indisponibilites: [],
++  niveauCuisine: '', tempsCuisine: '', preferences: '', allergies: '', budget: '', petitDejeuner: '', dejeuner: '', diner: '',
++}
+ const equipmentChoices = ['Salle de sport', 'Parc de street workout', 'Équipement personnel', 'Rien', 'Poids du corps uniquement']
++const personalEquipmentOptions = ['Kettlebell', 'Barre de traction', 'Banc', 'Haltères', 'Élastique de résistance']
++const enduranceOptions = ['Course à pied', 'Vélo', 'Corde à sauter', 'Rameur', 'Piscine']
+ 
+ function Choice({ value, checked, onChange, children }: { value: string; checked: boolean; onChange: () => void; children: string }) {
+   return (
+@@ -66,23 +75,40 @@ export function OnboardingWizard() {
+   const validStep = () => {
+     if (step === 1) return Boolean(data.age && data.sexe && data.poids && data.taille && data.niveauSport)
+     if (step === 2) return Boolean(data.objectif)
+-    if (step === 3) return data.equipements.length > 0 && Boolean(data.endurance)
++    if (step === 3) return data.equipements.length > 0 && data.endurance.length > 0
+     if (step === 4) return Boolean(data.reveil && data.travailDebut && data.travailFin && data.coucher && data.preferenceHoraire && data.duree && data.frequence)
+     return Boolean(data.niveauCuisine && data.tempsCuisine && data.budget && data.petitDejeuner && data.dejeuner && data.diner)
+   }
+   function next() { if (!validStep()) { setError('Merci de renseigner tous les champs obligatoires.'); return }; setError(''); setStep((current) => current + 1) }
+   function toggleEquipment(value: string) { setData((current) => ({ ...current, equipements: current.equipements.includes(value) ? current.equipements.filter((item) => item !== value) : [...current.equipements, value] })) }
++  function togglePersonalEquipment(value: string) { setData((current) => ({ ...current, detailsPerso: current.detailsPerso.includes(value) ? current.detailsPerso.filter((item) => item !== value) : [...current.detailsPerso, value] })) }
++  function toggleEndurance(value: string) { setData((current) => ({ ...current, endurance: current.endurance.includes(value) ? current.endurance.filter((item) => item !== value) : [...current.endurance, value] })) }
++  function addIndisponibilite() { setData((current) => ({ ...current, indisponibilites: [...current.indisponibilites, { debut: '', fin: '', label: '' }] })) }
++  function removeIndisponibilite(index: number) { setData((current) => ({ ...current, indisponibilites: current.indisponibilites.filter((_, i) => i !== index) })) }
++  function updateIndisponibilite(index: number, field: keyof Indisponibilite, value: string) {
++    setData((current) => ({
++      ...current,
++      indisponibilites: current.indisponibilites.map((item, i) => i === index ? { ...item, [field]: value } : item),
++    }))
++  }
+ 
+   async function save() {
+     if (!validStep()) { setError('Merci de renseigner tous les champs obligatoires.'); return }
+     if (!user) return
+     setError(''); setSaving(true)
+     const user_id = user.id
++    // Construire le tableau final d'équipements personnels (inclut "Autre" si du texte libre est saisi)
++    const detailsPersoFinal = [...data.detailsPerso]
++    if (data.detailsPersoAutre.trim()) {
++      detailsPersoFinal.push(data.detailsPersoAutre.trim())
++    }
++    // Filtrer les indisponibilités incomplètes
++    const indisponibilitesValides = data.indisponibilites.filter((ind) => ind.debut && ind.fin)
+     const writes = [
+       supabase.from('profiles').upsert({ user_id, age: Number(data.age), sexe: data.sexe, poids: Number(data.poids), taille: Number(data.taille), niveau_sport: data.niveauSport }, { onConflict: 'user_id' }),
+       supabase.from('goals').insert({ user_id, type_objectif: data.objectif, date_creation: new Date().toISOString().slice(0, 10) }),
+-      supabase.from('equipment').insert(data.equipements.map((type) => ({ user_id, type, details_perso: type === 'Équipement personnel' ? data.detailsPerso : null, equipement_endurance: data.endurance }))),
+-      supabase.from('availability').insert({ user_id, heure_reveil: data.reveil, heure_travail_debut: data.travailDebut, heure_travail_fin: data.travailFin, heure_coucher: data.coucher, preference_horaire: data.preferenceHoraire, duree_seance: Number(data.duree), frequence_semaine: Number(data.frequence) }),
++      supabase.from('equipment').insert({ user_id, type: data.equipements, details_perso: detailsPersoFinal, equipement_endurance: data.endurance }),
++      supabase.from('availability').insert({ user_id, heure_reveil: data.reveil, heure_travail_debut: data.travailDebut, heure_travail_fin: data.travailFin, heure_coucher: data.coucher, preference_horaire: data.preferenceHoraire, duree_seance: Number(data.duree), frequence_semaine: Number(data.frequence), indisponibilites: indisponibilitesValides }),
+       supabase.from('cooking_preferences').upsert({ user_id, niveau_cuisine: data.niveauCuisine, temps_dispo: Number(data.tempsCuisine), preferences: data.preferences || null, allergies: data.allergies || null, budget: data.budget, lieu_repas: { petit_dejeuner: data.petitDejeuner, dejeuner: data.dejeuner, diner: data.diner } }, { onConflict: 'user_id' }),
+     ]
+     const results = await Promise.all(writes)
+@@ -183,14 +209,31 @@ export function OnboardingWizard() {
+                   ))}
+                 </div>
+                 {data.equipements.includes('Équipement personnel') && (
+-                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+-                    <label>
+-                      Précise ton équipement personnel
+-                      <input className="input-base" value={data.detailsPerso} onChange={(e) => set('detailsPerso', e.target.value)} placeholder="Ex. haltères, élastiques…" />
++                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'grid', gap: 10 }}>
++                    <p style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--color-text-muted)', margin: 0 }}>Précise ton équipement personnel :</p>
++                    <div className="choice-list">
++                      {personalEquipmentOptions.map((item) => (
++                        <Choice key={item} value={item} checked={data.detailsPerso.includes(item)} onChange={() => togglePersonalEquipment(item)}>
++                          {item}
++                        </Choice>
++                      ))}
++                    </div>
++                    <label style={{ marginTop: 4 }}>
++                      Autre (optionnel)
++                      <input className="input-base" value={data.detailsPersoAutre} onChange={(e) => setData((current) => ({ ...current, detailsPersoAutre: e.target.value }))} placeholder="Précise si besoin…" />
+                     </label>
+                   </motion.div>
+                 )}
+-                <SelectField label="Équipement d'endurance disponible" value={data.endurance} onChange={(v) => set('endurance', v)} options={['Course à pied', 'Vélo', 'Corde à sauter', 'Aucun', 'Autre']} />
++                <div style={{ display: 'grid', gap: 10, marginTop: 4 }}>
++                  <p style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--color-text-muted)', margin: 0 }}>Équipement d'endurance disponible :</p>
++                  <div className="choice-list">
++                    {enduranceOptions.map((item) => (
++                      <Choice key={item} value={item} checked={data.endurance.includes(item)} onChange={() => toggleEndurance(item)}>
++                        {item}
++                      </Choice>
++                    ))}
++                  </div>
++                </div>
+               </Step>
+             )}
+ 
+@@ -211,6 +254,50 @@ export function OnboardingWizard() {
+                   <label>Durée souhaitée (minutes)<input className="input-base" type="number" min="1" value={data.duree} onChange={(e) => set('duree', e.target.value)} placeholder="45" /></label>
+                   <label>Séances par semaine<input className="input-base" type="number" min="1" max="7" value={data.frequence} onChange={(e) => set('frequence', e.target.value)} placeholder="4" /></label>
+                 </div>
++
++                <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
++                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
++                    <p style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--color-text-muted)', margin: 0 }}>Indisponibilités dans la journée (optionnel)</p>
++                    <Button variant="secondary" size="sm" onClick={addIndisponibilite}>
++                      + Ajouter
++                    </Button>
++                  </div>
++                  <AnimatePresence>
++                    {data.indisponibilites.map((ind, index) => (
++                      <motion.div
++                        key={index}
++                        initial={{ opacity: 0, height: 0 }}
++                        animate={{ opacity: 1, height: 'auto' }}
++                        exit={{ opacity: 0, height: 0 }}
++                        transition={{ duration: 0.25 }}
++                        style={{ overflow: 'hidden' }}
++                      >
++                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.5fr auto', gap: 10, alignItems: 'end' }}>
++                          <label>
++                            Début
++                            <input className="input-base" type="time" value={ind.debut} onChange={(e) => updateIndisponibilite(index, 'debut', e.target.value)} />
++                          </label>
++                          <label>
++                            Fin
++                            <input className="input-base" type="time" value={ind.fin} onChange={(e) => updateIndisponibilite(index, 'fin', e.target.value)} />
++                          </label>
++                          <label>
++                            Raison (optionnel)
++                            <input className="input-base" value={ind.label} onChange={(e) => updateIndisponibilite(index, 'label', e.target.value)} placeholder="Ex. devoirs" />
++                          </label>
++                          <Button variant="ghost" onClick={() => removeIndisponibilite(index)} style={{ minHeight: 46, color: 'rgb(var(--color-accent-warm-rgb))' }}>
++                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
++                              <path d="M18 6L6 18M6 6l12 12" />
++                            </svg>
++                          </Button>
++                        </div>
++                      </motion.div>
++                    ))}
++                  </AnimatePresence>
++                  {data.indisponibilites.length === 0 && (
++                    <p className="caption">Pas d'indisponibilité déclarée. Tu pourras en ajouter plus tard.</p>
++                  )}
++                </div>
+               </Step>
+             )}
+ 
+@@ -302,7 +389,7 @@ function Step({ title, subtitle, children, icon }: { title: string; subtitle: st
+             {icon}
+           </motion.div>
+         )}
+-        <div style={{ display: 'grid', gap: 8 }}>
++        <div style={{ display: 'grid', gap: 8, minWidth: 0 }}>
+           <h1 style={{ fontSize: 'clamp(1.5rem, 3.2vw, 2.15rem)' }}>{title}</h1>
+           <p className="subtitle">{subtitle}</p>
+         </div>
+@@ -311,7 +398,7 @@ function Step({ title, subtitle, children, icon }: { title: string; subtitle: st
+         initial={{ opacity: 0 }}
+         animate={{ opacity: 1 }}
+         transition={{ delay: 0.18, duration: 0.4 }}
+-        style={{ display: 'grid', gap: 18, marginTop: 6 }}
++        style={{ display: 'grid', gap: 18, marginTop: 16 }}
+       >
+         {children}
+       </motion.div>
+diff --git a/src/features/program-engine/rules/buildSchedule.ts b/src/features/program-engine/rules/buildSchedule.ts
+new file mode 100644
+index 0000000..2c5a916
+--- /dev/null
++++ b/src/features/program-engine/rules/buildSchedule.ts
+@@ -0,0 +1,172 @@
++/**
++ * Moteur de construction du planning hebdomadaire.
++ *
++ * Génère des créneaux d'entraînement en tenant compte :
++ * - Des heures de réveil / travail / coucher
++ * - De la préférence horaire (matin, soir, variable)
++ * - De la durée de séance souhaitée (valeur unique en minutes)
++ * - De la fréquence hebdomadaire
++ * - Des plages d'indisponibilité déclarées par l'utilisateur
++ */
++
++import type { UserAvailability, TimeSlot, Indisponibilite } from './types'
++
++/** Jours de la semaine */
++const JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const
++
++/** Convertit "HH:MM" en minutes depuis minuit */
++export function timeToMinutes(time: string): number {
++  const [h, m] = time.split(':').map(Number)
++  return h * 60 + (m || 0)
++}
++
++/** Convertit des minutes depuis minuit en "HH:MM" */
++export function minutesToTime(minutes: number): string {
++  const h = Math.floor(minutes / 60)
++  const m = minutes % 60
++  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
++}
++
++/** Vérifie si un créneau [start, end) chevauche une indisponibilité */
++function overlapsIndisponibilite(
++  slotStart: number,
++  slotEnd: number,
++  indisponibilites: Indisponibilite[],
++): boolean {
++  for (const ind of indisponibilites) {
++    const indStart = timeToMinutes(ind.debut)
++    const indEnd = timeToMinutes(ind.fin)
++    // Deux intervalles se chevauchent si startA < endB && startB < endA
++    if (slotStart < indEnd && indStart < slotEnd) {
++      return true
++    }
++  }
++  return false
++}
++
++/**
++ * Détermine les créneaux candidats selon la préférence horaire.
++ *
++ * - Matin : entre le réveil et le début du travail
++ * - Soir : entre la fin du travail et le coucher
++ * - Variable : propose les deux plages
++ */
++function getCandidateWindows(
++  availability: UserAvailability,
++): { start: number; end: number }[] {
++  const reveil = timeToMinutes(availability.heure_reveil)
++  const travailDebut = timeToMinutes(availability.heure_travail_debut)
++  const travailFin = timeToMinutes(availability.heure_travail_fin)
++  const coucher = timeToMinutes(availability.heure_coucher)
++  const duree = availability.duree_seance
++
++  const windows: { start: number; end: number }[] = []
++
++  // Fenêtre du matin : réveil → début du travail
++  const matinStart = reveil
++  const matinEnd = travailDebut
++  if (matinEnd - matinStart >= duree) {
++    windows.push({ start: matinStart, end: matinEnd })
++  }
++
++  // Fenêtre du soir : fin du travail → coucher
++  const soirStart = travailFin
++  const soirEnd = coucher
++  if (soirEnd - soirStart >= duree) {
++    windows.push({ start: soirStart, end: soirEnd })
++  }
++
++  switch (availability.preference_horaire) {
++    case 'Matin':
++      return windows.length > 0 ? [windows[0]] : []
++    case 'Soir':
++      return windows.length > 1 ? [windows[1]] : windows.length > 0 ? [windows[0]] : []
++    case 'Variable selon les jours':
++    default:
++      return windows
++  }
++}
++
++/**
++ * Trouve un créneau valide dans une fenêtre, en excluant les indisponibilités.
++ * Place le créneau au début de la fenêtre, ou juste après une indisponibilité.
++ */
++function findSlotInWindow(
++  windowStart: number,
++  windowEnd: number,
++  duree: number,
++  indisponibilites: Indisponibilite[],
++): { start: number; end: number } | null {
++  let candidate = windowStart
++
++  while (candidate + duree <= windowEnd) {
++    if (!overlapsIndisponibilite(candidate, candidate + duree, indisponibilites)) {
++      return { start: candidate, end: candidate + duree }
++    }
++    // Avancer d'un cran après l'indisponibilité qui bloque
++    for (const ind of indisponibilites) {
++      const indStart = timeToMinutes(ind.debut)
++      const indEnd = timeToMinutes(ind.fin)
++      if (candidate < indEnd && indStart < candidate + duree) {
++        candidate = indEnd
++        break
++      }
++    }
++    // Sécurité anti-boucle infinie
++    if (candidate + duree > windowEnd) break
++  }
++
++  return null
++}
++
++/**
++ * Construit le planning hebdomadaire.
++ *
++ * @param availability - Disponibilités de l'utilisateur (incluant indisponibilités)
++ * @returns Liste de créneaux attribués aux jours de la semaine
++ */
++export function buildWeeklySchedule(availability: UserAvailability): TimeSlot[] {
++  const frequence = availability.frequence_semaine
++  const duree = availability.duree_seance
++  const indisponibilites = availability.indisponibilites || []
++
++  if (frequence <= 0 || duree <= 0) return []
++
++  const windows = getCandidateWindows(availability)
++  if (windows.length === 0) return []
++
++  const slots: TimeSlot[] = []
++  let jourIndex = 0
++  let windowIndex = 0
++  let seancesPlacees = 0
++
++  while (seancesPlacees < frequence && jourIndex < JOURS.length * 2) {
++    // Protection anti-boucle
++    if (jourIndex >= JOURS.length * 2) break
++
++    const jour = JOURS[jourIndex % JOURS.length]
++    const window = windows[windowIndex % windows.length]
++
++    const slot = findSlotInWindow(window.start, window.end, duree, indisponibilites)
++
++    if (slot) {
++      // Alterner callisthenie / endurance
++      const type: 'callisthenie' | 'endurance' = seancesPlacees % 2 === 0 ? 'callisthenie' : 'endurance'
++      slots.push({
++        jour,
++        heure_debut: minutesToTime(slot.start),
++        heure_fin: minutesToTime(slot.end),
++        type,
++      })
++      seancesPlacees++
++    }
++
++    // Passer au jour suivant, alterner les fenêtres si disponible
++    jourIndex++
++    if (windows.length > 1) {
++      windowIndex++
++    }
++  }
++
++  return slots
++}
+diff --git a/src/features/program-engine/rules/index.ts b/src/features/program-engine/rules/index.ts
+new file mode 100644
+index 0000000..941cf08
+--- /dev/null
++++ b/src/features/program-engine/rules/index.ts
+@@ -0,0 +1,13 @@
++export { selectExercisesForProfile, hasRequiredEquipment } from './selectExercises'
++export { buildWeeklySchedule, timeToMinutes, minutesToTime } from './buildSchedule'
++export type {
++  UserProfile,
++  UserEquipment,
++  UserAvailability,
++  Exercise,
++  TimeSlot,
++  Indisponibilite,
++  EquipmentType,
++  PersonalEquipment,
++  EnduranceEquipment,
++} from './types'
+diff --git a/src/features/program-engine/rules/rules.test.ts b/src/features/program-engine/rules/rules.test.ts
+new file mode 100644
+index 0000000..88d447f
+--- /dev/null
++++ b/src/features/program-engine/rules/rules.test.ts
+@@ -0,0 +1,331 @@
++import { describe, it, expect } from 'vitest'
++import { selectExercisesForProfile, hasRequiredEquipment } from './selectExercises'
++import { buildWeeklySchedule, timeToMinutes, minutesToTime } from './buildSchedule'
++import type { Exercise, UserEquipment, UserProfile, UserAvailability } from './types'
++
++// ============================================================
++// Fixtures
++// ============================================================
++
++const baseExercises: Exercise[] = [
++  { id: '1', nom: 'Pompes', categorie: 'push', equipement_requis: [], niveau: 'Débutant', muscle_cible: 'pectoraux' },
++  { id: '2', nom: 'Tractions', categorie: 'pull', equipement_requis: ['Barre de traction'], niveau: 'Intermédiaire', muscle_cible: 'dorsaux' },
++  { id: '3', nom: 'Front lever', categorie: 'figures', equipement_requis: ['Barre de traction'], niveau: 'Avancé', muscle_cible: 'dorsaux' },
++  { id: '4', nom: 'Squat bulgare', categorie: 'legs', equipement_requis: ['Banc'], niveau: 'Intermédiaire', muscle_cible: 'quadriceps' },
++  { id: '5', nom: 'Swing kettlebell', categorie: 'full-body', equipement_requis: ['Kettlebell'], niveau: 'Intermédiaire', muscle_cible: 'chaine-posterieure' },
++  { id: '6', nom: 'Curl élastique', categorie: 'arms', equipement_requis: ['Élastique de résistance'], niveau: 'Débutant', muscle_cible: 'biceps' },
++  { id: '7', nom: 'Row haltères', categorie: 'pull', equipement_requis: ['Haltères'], niveau: 'Intermédiaire', muscle_cible: 'dorsaux' },
++  { id: '8', nom: 'Développé couché', categorie: 'push', equipement_requis: ['Salle de sport'], niveau: 'Avancé', muscle_cible: 'pectoraux' },
++  { id: '9', nom: 'Planche', categorie: 'core', equipement_requis: [], niveau: 'Débutant', muscle_cible: 'abdominaux' },
++  { id: '10', nom: 'Muscle-up', categorie: 'figures', equipement_requis: ['Barre de traction'], niveau: 'Confirmé', muscle_cible: 'torse' },
++]
++
++const emptyEquipment: UserEquipment = {
++  types: ['Rien'],
++  details_perso: [],
++  equipement_endurance: [],
++}
++
++const salleEquipment: UserEquipment = {
++  types: ['Salle de sport'],
++  details_perso: [],
++  equipement_endurance: [],
++}
++
++const persoEquipment: UserEquipment = {
++  types: ['Équipement personnel'],
++  details_perso: ['Barre de traction', 'Haltères'],
++  equipement_endurance: [],
++}
++
++const fullPersoEquipment: UserEquipment = {
++  types: ['Équipement personnel'],
++  details_perso: ['Kettlebell', 'Barre de traction', 'Banc', 'Haltères', 'Élastique de résistance'],
++  equipement_endurance: [],
++}
++
++const parcEquipment: UserEquipment = {
++  types: ['Parc de street workout'],
++  details_perso: [],
++  equipement_endurance: [],
++}
++
++const baseProfile: UserProfile = {
++  age: 25,
++  sexe: 'Homme',
++  poids: 75,
++  taille: 180,
++  niveau_sport: 'Intermédiaire',
++  objectif: 'Prise de muscle',
++}
++
++const baseAvailability: UserAvailability = {
++  heure_reveil: '07:00',
++  heure_travail_debut: '09:00',
++  heure_travail_fin: '17:00',
++  heure_coucher: '23:00',
++  preference_horaire: 'Soir',
++  duree_seance: 45,
++  frequence_semaine: 4,
++  indisponibilites: [],
++}
++
++// ============================================================
++// Tests : selectExercisesForProfile
++// ============================================================
++
++describe('selectExercisesForProfile', () => {
++  it('exclut les exercices dont le niveau dépasse celui de l\'utilisateur', () => {
++    const result = selectExercisesForProfile(baseExercises, baseProfile, salleEquipment)
++    const noms = result.map((e) => e.nom)
++    expect(noms).not.toContain('Front lever') // Avancé > Intermédiaire
++    expect(noms).not.toContain('Muscle-up')   // Confirmé > Intermédiaire
++    expect(noms).toContain('Pompes')          // Débutant ≤ Intermédiaire
++    expect(noms).toContain('Tractions')       // Intermédiaire ≤ Intermédiaire
++  })
++
++  it('inclut tous les exercices pour un utilisateur Confirmé avec salle', () => {
++    const profileConfirmé = { ...baseProfile, niveau_sport: 'Confirmé' as const }
++    const result = selectExercisesForProfile(baseExercises, profileConfirmé, salleEquipment)
++    expect(result.length).toBe(baseExercises.length)
++  })
++
++  it('ne garde que les exercices sans équipement pour un utilisateur "Rien"', () => {
++    const result = selectExercisesForProfile(baseExercises, baseProfile, emptyEquipment)
++    const noms = result.map((e) => e.nom)
++    expect(noms).toContain('Pompes')
++    expect(noms).toContain('Planche')
++    expect(noms).not.toContain('Tractions')
++    expect(noms).not.toContain('Squat bulgare')
++    expect(noms).not.toContain('Swing kettlebell')
++  })
++
++  it('inclut les exercices correspondant aux équipements personnels', () => {
++    const result = selectExercisesForProfile(baseExercises, baseProfile, persoEquipment)
++    const noms = result.map((e) => e.nom)
++    expect(noms).toContain('Tractions')   // Barre de traction ✓
++    expect(noms).toContain('Row haltères') // Haltères ✓
++    expect(noms).not.toContain('Squat bulgare') // Banc manquant
++    expect(noms).not.toContain('Swing kettlebell') // Kettlebell manquant
++  })
++
++  it('inclut tous les exercices quand le parc street workout couvre tout', () => {
++    const result = selectExercisesForProfile(baseExercises, baseProfile, parcEquipment)
++    const noms = result.map((e) => e.nom)
++    expect(noms).toContain('Tractions')
++    expect(noms).toContain('Squat bulgare')
++    expect(noms).toContain('Swing kettlebell')
++  })
++
++  it('couvre tous les équipements personnels', () => {
++    const result = selectExercisesForProfile(baseExercises, baseProfile, fullPersoEquipment)
++    const noms = result.map((e) => e.nom)
++    expect(noms).toContain('Tractions')
++    expect(noms).toContain('Squat bulgare')
++    expect(noms).toContain('Swing kettlebell')
++    expect(noms).toContain('Curl élastique')
++    expect(noms).toContain('Row haltères')
++    // Développé couché requiert "Salle de sport" → non couvert
++    expect(noms).not.toContain('Développé couché')
++  })
++})
++
++describe('hasRequiredEquipment', () => {
++  it('accepte un exercice sans équipement requis', () => {
++    const exercise: Exercise = { id: 'x', nom: 'Test', categorie: '', equipement_requis: [], niveau: 'Débutant', muscle_cible: '' }
++    expect(hasRequiredEquipment(exercise, emptyEquipment)).toBe(true)
++  })
++
++  it('refuse un exercice nécessitant un équipement non possédé', () => {
++    const exercise: Exercise = { id: 'x', nom: 'Test', categorie: '', equipement_requis: ['Kettlebell'], niveau: 'Débutant', muscle_cible: '' }
++    expect(hasRequiredEquipment(exercise, persoEquipment)).toBe(false)
++  })
++
++  it('accepte un exercice quand l\'utilisateur a la salle de sport', () => {
++    const exercise: Exercise = { id: 'x', nom: 'Test', categorie: '', equipement_requis: ['Kettlebell'], niveau: 'Débutant', muscle_cible: '' }
++    expect(hasRequiredEquipment(exercise, salleEquipment)).toBe(true)
++  })
++})
++
++// ============================================================
++// Tests : buildWeeklySchedule
++// ============================================================
++
++describe('buildWeeklySchedule', () => {
++  it('génère le bon nombre de séances', () => {
++    const slots = buildWeeklySchedule(baseAvailability)
++    expect(slots.length).toBe(4)
++  })
++
++  it('alterne les types callisthenie / endurance', () => {
++    const slots = buildWeeklySchedule(baseAvailability)
++    expect(slots[0].type).toBe('callisthenie')
++    expect(slots[1].type).toBe('endurance')
++    expect(slots[2].type).toBe('callisthenie')
++    expect(slots[3].type).toBe('endurance')
++  })
++
++  it('place les séances le soir quand la préférence est "Soir"', () => {
++    const slots = buildWeeklySchedule(baseAvailability)
++    for (const slot of slots) {
++      const startMin = timeToMinutes(slot.heure_debut)
++      expect(startMin).toBeGreaterThanOrEqual(timeToMinutes('17:00'))
++      expect(startMin).toBeLessThan(timeToMinutes('23:00'))
++    }
++  })
++
++  it('place les séances le matin quand la préférence est "Matin"', () => {
++    const matin = { ...baseAvailability, preference_horaire: 'Matin' as const }
++    const slots = buildWeeklySchedule(matin)
++    for (const slot of slots) {
++      const startMin = timeToMinutes(slot.heure_debut)
++      expect(startMin).toBeGreaterThanOrEqual(timeToMinutes('07:00'))
++      expect(startMin).toBeLessThan(timeToMinutes('09:00'))
++    }
++  })
++
++  it('retourne une liste vide si la durée est 0', () => {
++    const zero = { ...baseAvailability, duree_seance: 0 }
++    expect(buildWeeklySchedule(zero).length).toBe(0)
++  })
++
++  it('retourne une liste vide si la fréquence est 0', () => {
++    const zero = { ...baseAvailability, frequence_semaine: 0 }
++    expect(buildWeeklySchedule(zero).length).toBe(0)
++  })
++
++  it('respecte la durée de séance (valeur unique)', () => {
++    const slots = buildWeeklySchedule(baseAvailability)
++    for (const slot of slots) {
++      const duree = timeToMinutes(slot.heure_fin) - timeToMinutes(slot.heure_debut)
++      expect(duree).toBe(45) // duree_seance = 45
++    }
++  })
++})
++
++// ============================================================
++// Tests : indisponibilités
++// ============================================================
++
++describe('indisponibilités', () => {
++  it('exclut un créneau qui tombe dans une plage d\'indisponibilité', () => {
++    // Créer une indisponibilité qui couvre toute la plage du soir (17h-19h)
++    const avecIndispo: UserAvailability = {
++      ...baseAvailability,
++      indisponibilites: [
++        { debut: '17:00', fin: '19:00', label: 'Devoirs' },
++      ],
++    }
++
++    const slots = buildWeeklySchedule(avecIndispo)
++    expect(slots.length).toBe(4)
++
++    // Aucun créneau ne doit chevaucher 17h-19h
++    for (const slot of slots) {
++      const start = timeToMinutes(slot.heure_debut)
++      const end = timeToMinutes(slot.heure_fin)
++      const indStart = timeToMinutes('17:00')
++      const indEnd = timeToMinutes('19:00')
++      // Le créneau ne doit PAS chevaucher l'indisponibilité
++      const overlaps = start < indEnd && indStart < end
++      expect(overlaps).toBe(false)
++    }
++  })
++
++  it('déplace les créneaux après l\'indisponibilité quand possible', () => {
++    // Indisponibilité de 17h à 18h30 → les séances doivent être après 18h30
++    const avecIndispo: UserAvailability = {
++      ...baseAvailability,
++      indisponibilites: [
++        { debut: '17:00', fin: '18:30', label: 'Repas' },
++      ],
++    }
++
++    const slots = buildWeeklySchedule(avecIndispo)
++    expect(slots.length).toBe(4)
++
++    for (const slot of slots) {
++      const start = timeToMinutes(slot.heure_debut)
++      // La séance doit commencer à 18h30 ou après
++      expect(start).toBeGreaterThanOrEqual(timeToMinutes('18:30'))
++    }
++  })
++
++  it('gère plusieurs indisponibilités dans la même journée', () => {
++    const avecPlusieursIndispo: UserAvailability = {
++      ...baseAvailability,
++      indisponibilites: [
++        { debut: '17:00', fin: '18:00', label: 'Devoirs' },
++        { debut: '19:00', fin: '20:00', label: 'Dîner en famille' },
++      ],
++    }
++
++    const slots = buildWeeklySchedule(avecPlusieursIndispo)
++    expect(slots.length).toBe(4)
++
++    for (const slot of slots) {
++      const start = timeToMinutes(slot.heure_debut)
++      const end = timeToMinutes(slot.heure_fin)
++      // Ne doit chevaucher aucune indisponibilité
++      for (const ind of avecPlusieursIndispo.indisponibilites) {
++        const indStart = timeToMinutes(ind.debut)
++        const indEnd = timeToMinutes(ind.fin)
++        const overlaps = start < indEnd && indStart < end
++        expect(overlaps).toBe(false)
++      }
++    }
++  })
++
++  it('ne génère pas de séance si toute la plage disponible est indisponible', () => {
++    // Indisponibilité couvrant toute la soirée
++    const toutIndispo: UserAvailability = {
++      ...baseAvailability,
++      indisponibilites: [
++        { debut: '17:00', fin: '23:00', label: 'Travail de nuit' },
++      ],
++    }
++
++    const slots = buildWeeklySchedule(toutIndispo)
++    // La plage du soir (17h-23h) est entièrement bloquée
++    // Si matin non préféré, pas de créneaux
++    expect(slots.length).toBe(0)
++  })
++
++  it('utilise la fenêtre matin quand la soirée est bloquée et la préférence est "Variable"', () => {
++    const variableAvecBloquageSoir: UserAvailability = {
++      ...baseAvailability,
++      preference_horaire: 'Variable selon les jours',
++      indisponibilites: [
++        { debut: '17:00', fin: '23:00', label: 'Indisponible soir' },
++      ],
++    }
++
++    const slots = buildWeeklySchedule(variableAvecBloquageSoir)
++    expect(slots.length).toBe(4)
++
++    // Tous les créneaux doivent être le matin
++    for (const slot of slots) {
++      const start = timeToMinutes(slot.heure_debut)
++      expect(start).toBeGreaterThanOrEqual(timeToMinutes('07:00'))
++      expect(start).toBeLessThan(timeToMinutes('09:00'))
++    }
++  })
++})
++
++// ============================================================
++// Tests utilitaires
++// ============================================================
++
++describe('utilitaires', () => {
++  it('timeToMinutes convertit correctement', () => {
++    expect(timeToMinutes('00:00')).toBe(0)
++    expect(timeToMinutes('07:30')).toBe(450)
++    expect(timeToMinutes('23:59')).toBe(1439)
++  })
++
++  it('minutesToTime convertit correctement', () => {
++    expect(minutesToTime(0)).toBe('00:00')
++    expect(minutesToTime(450)).toBe('07:30')
++    expect(minutesToTime(1439)).toBe('23:59')
++  })
++})
+diff --git a/src/features/program-engine/rules/selectExercises.ts b/src/features/program-engine/rules/selectExercises.ts
+new file mode 100644
+index 0000000..f74eb35
+--- /dev/null
++++ b/src/features/program-engine/rules/selectExercises.ts
+@@ -0,0 +1,106 @@
++/**
++ * Moteur de sélection d'exercices.
++ *
++ * Compare l'équipement de l'utilisateur (tableaux de valeurs structurées)
++ * avec l'équipement requis par chaque exercice de la bibliothèque,
++ * et filtre selon le niveau de l'utilisateur.
++ */
++
++import type { Exercise, UserEquipment, UserProfile } from './types'
++
++/** Niveaux ordonnés du moins au plus avancé */
++const NIVEAU_ORDER = ['Débutant', 'Intermédiaire', 'Avancé', 'Confirmé'] as const
++
++function niveauIndex(niveau: string): number {
++  const idx = NIVEAU_ORDER.indexOf(niveau as (typeof NIVEAU_ORDER)[number])
++  return idx === -1 ? 0 : idx
++}
++
++/**
++ * Détermine si l'équipement de l'utilisateur couvre l'équipement requis
++ * par un exercice donné.
++ *
++ * Logique :
++ * - Si l'exercice ne requiert aucun équipement (corps libre), il est toujours sélectionnable.
++ * - Si l'exercice requiert "Poids du corps uniquement", il est sélectionnable si l'utilisateur
++ *   a coché "Poids du corps uniquement" OU "Rien" OU n'a aucun équipement spécifique.
++ * - Si l'exercice requiert un équipement spécifique (ex. "Barre de traction"),
++ *   l'utilisateur doit l'avoir dans son tableau `details_perso` OU avoir coché
++ *   "Salle de sport" ou "Parc de street workout" (qui fournissent tout).
++ * - Si l'exercice requiert "Salle de sport", l'utilisateur doit l'avoir coché.
++ */
++export function hasRequiredEquipment(
++  exercise: Exercise,
++  userEquipment: UserEquipment,
++): boolean {
++  const requis = exercise.equipement_requis
++
++  // Exercice sans équipement spécifique
++  if (!requis || requis.length === 0) return true
++
++  // Si l'utilisateur a une salle de sport ou un parc, il a accès à tout
++  const hasFullAccess =
++    userEquipment.types.includes('Salle de sport') ||
++    userEquipment.types.includes('Parc de street workout')
++
++  for (const req of requis) {
++    const reqLower = req.toLowerCase().trim()
++
++    // Équipement de base (corps libre)
++    if (reqLower === 'aucun' || reqLower === 'poids du corps' || reqLower === 'poids du corps uniquement') {
++      // Accessible à tous
++      continue
++    }
++
++    // Accès complet salle/parc couvre tout sauf les équipements très spécifiques
++    if (hasFullAccess) continue
++
++    // Vérifier dans les équipements personnels
++    const matchesPersonal = userEquipment.details_perso.some(
++      (perso) => perso.toLowerCase().trim() === reqLower,
++    )
++    if (matchesPersonal) continue
++
++    // L'équipement requis n'est pas couvert
++    return false
++  }
++
++  return true
++}
++
++/**
++ * Vérifie si le niveau de l'utilisateur est suffisant pour un exercice.
++ * Autorise les exercices à un niveau égal ou inférieur au niveau de l'utilisateur.
++ */
++function niveauSuffisant(userNiveau: string, exerciseNiveau: string): boolean {
++  return niveauIndex(userNiveau) >= niveauIndex(exerciseNiveau)
++}
++
++/**
++ * Sélectionne les exercices compatibles avec le profil et l'équipement
++ * de l'utilisateur.
++ *
++ * @param exercises - Bibliothèque complète d'exercices
++ * @param profile - Profil de l'utilisateur (niveau, objectif)
++ * @param equipment - Équipement structuré de l'utilisateur
++ * @returns Liste filtrée d'exercices compatibles
++ */
++export function selectExercisesForProfile(
++  exercises: Exercise[],
++  profile: UserProfile,
++  equipment: UserEquipment,
++): Exercise[] {
++  return exercises.filter((exercise) => {
++    // 1. Vérifier le niveau
++    if (!niveauSuffisant(profile.niveau_sport, exercise.niveau)) {
++      return false
++    }
++
++    // 2. Vérifier l'équipement
++    if (!hasRequiredEquipment(exercise, equipment)) {
++      return false
++    }
++
++    return true
++  })
++}
+diff --git a/src/features/program-engine/rules/types.ts b/src/features/program-engine/rules/types.ts
+new file mode 100644
+index 0000000..11df86a
+--- /dev/null
++++ b/src/features/program-engine/rules/types.ts
+@@ -0,0 +1,80 @@
++/** Types du moteur de règles Callibrate */
++
++/** Équipement d'une salle / parc / personnel */
++export type EquipmentType =
++  | 'Salle de sport'
++  | 'Parc de street workout'
++  | 'Équipement personnel'
++  | 'Rien'
++  | 'Poids du corps uniquement'
++
++/** Équipements personnels structurés */
++export type PersonalEquipment =
++  | 'Kettlebell'
++  | 'Barre de traction'
++  | 'Banc'
++  | 'Haltères'
++  | 'Élastique de résistance'
++  | string // "Autre" texte libre
++
++/** Équipement d'endurance */
++export type EnduranceEquipment =
++  | 'Course à pied'
++  | 'Vélo'
++  | 'Corde à sauter'
++  | 'Rameur'
++  | 'Piscine'
++
++/** Plage d'indisponibilité dans la journée */
++export type Indisponibilite = {
++  debut: string   // "HH:MM"
++  fin: string     // "HH:MM"
++  label?: string  // raison optionnelle
++}
++
++/** Profil utilisateur pour le moteur */
++export type UserProfile = {
++  age: number
++  sexe: string
++  poids: number
++  taille: number
++  niveau_sport: 'Débutant' | 'Intermédiaire' | 'Avancé' | 'Confirmé'
++  objectif: string
++}
++
++/** Équipement complet de l'utilisateur */
++export type UserEquipment = {
++  types: EquipmentType[]
++  details_perso: PersonalEquipment[]
++  equipement_endurance: EnduranceEquipment[]
++}
++
++/** Disponibilités de l'utilisateur */
++export type UserAvailability = {
++  heure_reveil: string     // "HH:MM"
++  heure_travail_debut: string
++  heure_travail_fin: string
++  heure_coucher: string
++  preference_horaire: 'Matin' | 'Soir' | 'Variable selon les jours'
++  duree_seance: number     // minutes (valeur unique)
++  frequence_semaine: number
++  indisponibilites: Indisponibilite[]
++}
++
++/** Exercice de la bibliothèque */
++export type Exercise = {
++  id: string
++  nom: string
++  categorie: string
++  equipement_requis: string[]   // ex. ['Barre de traction'] ou ['Salle de sport']
++  niveau: string                // 'Débutant' | 'Intermédiaire' | 'Avancé' | 'Confirmé'
++  muscle_cible: string
++}
++
++/** Créneau horaire dans le planning */
++export type TimeSlot = {
++  jour: string      // 'Lundi', 'Mardi', etc.
++  heure_debut: string  // "HH:MM"
++  heure_fin: string
++  type: 'callisthenie' | 'endurance'
++}
+diff --git a/src/index.css b/src/index.css
+index 9dc3976..ed7cd2f 100644
+--- a/src/index.css
++++ b/src/index.css
+@@ -580,6 +580,32 @@ button:not(.btn):not(.secondary):not(.theme-toggle-btn):not(.choice-toggle) {
+   .wizard-actions .btn {
+     width: 100%;
+   }
++
++  /* Fix: step header icon + title overlap on narrow mobile screens */
++  .step > div:first-child {
++    gap: 10px !important;
++  }
++  .step > div:first-child > div:last-child {
++    overflow-wrap: break-word;
++    word-break: break-word;
++  }
++  .step > div:first-child > div:first-child[style] {
++    width: 38px !important;
++    height: 38px !important;
++    min-width: 38px !important;
++  }
++  .step h1 {
++    font-size: 1.3rem !important;
++    line-height: 1.15 !important;
++  }
++  .step .subtitle {
++    margin-top: 2px;
++  }
++
++  /* Fix: indisponibilités grid layout on mobile */
++  .step [style*="grid-template-columns: 1fr 1fr 1.5fr"] {
++    grid-template-columns: 1fr !important;
++  }
+ }
+ 
+ /* ====== Links ====== */
+@@ -717,3 +743,23 @@ a:hover {
+ 
+ /* Remove old App.css leakage */
+ #root { min-height: 100vh; isolation: isolate; }
++
++/* Fix: step header stacking on very narrow mobile (~390px) */
++@media (max-width: 420px) {
++  .step > div:first-child {
++    flex-direction: column !important;
++    align-items: center !important;
++    text-align: center;
++    gap: 10px !important;
++  }
++  .step h1 {
++    font-size: 1.25rem !important;
++  }
++  .step .subtitle {
++    font-size: 0.88rem;
++    text-align: center;
++  }
++  .wizard-card {
++    padding: 20px 16px !important;
++  }
++}
+diff --git a/supabase/migrations/0002_add_indisponibilites.sql b/supabase/migrations/0002_add_indisponibilites.sql
+new file mode 100644
+index 0000000..3f10a20
+--- /dev/null
++++ b/supabase/migrations/0002_add_indisponibilites.sql
+@@ -0,0 +1,31 @@
++-- Migration additive : ajout de la colonne indisponibilites à availability
++-- et adaptation des colonnes equipment pour des structures de données structurées.
++
++-- 1. Ajout de la colonne indisponibilites (jsonb, tableau d'objets {debut, fin, label})
++ALTER TABLE public.availability
++  ADD COLUMN IF NOT EXISTS indisponibilites jsonb DEFAULT '[]'::jsonb;
++
++-- 2. Changement du type de details_perso : texte libre -> jsonb (tableau de valeurs)
++-- On passe d'un champ texte libre à un tableau JSON des équipements personnels sélectionnés.
++-- Les données existantes (texte libre) sont conservées dans un tableau d'un élément pour ne rien perdre.
++ALTER TABLE public.equipment
++  ALTER COLUMN details_perso TYPE jsonb
++  USING CASE
++    WHEN details_perso IS NULL THEN '[]'::jsonb
++    ELSE jsonb_build_array(details_perso)
++  END;
++
++ALTER TABLE public.equipment
++  ALTER COLUMN details_perso SET DEFAULT '[]'::jsonb;
++
++-- 3. Changement du type de equipement_endurance : texte -> jsonb (tableau de valeurs)
++-- Permet de stocker plusieurs équipements d'endurance au lieu d'un seul.
++ALTER TABLE public.equipment
++  ALTER COLUMN equipement_endurance TYPE jsonb
++  USING CASE
++    WHEN equipement_endurance IS NULL THEN '[]'::jsonb
++    ELSE jsonb_build_array(equipement_endurance)
++  END;
++
++ALTER TABLE public.equipment
++  ALTER COLUMN equipement_endurance SET DEFAULT '[]'::jsonb;
+diff --git a/vitest.config.ts b/vitest.config.ts
+new file mode 100644
+index 0000000..a98465e
+--- /dev/null
++++ b/vitest.config.ts
+@@ -0,0 +1,8 @@
++import { defineConfig } from 'vitest/config'
++
++export default defineConfig({
++  test: {
++    environment: 'node',
++    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
++  },
++})

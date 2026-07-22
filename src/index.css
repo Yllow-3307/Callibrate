@@ -580,6 +580,13 @@ button:not(.btn):not(.secondary):not(.theme-toggle-btn):not(.choice-toggle) {
   .wizard-actions .btn {
     width: 100%;
   }
+
+  /* Fix: step header icon + title overlap on narrow mobile screens */
+  .step > div:first-child { gap: 10px !important; }
+  .step > div:first-child > div:last-child { overflow-wrap: break-word; word-break: break-word; }
+  .step h1 { font-size: 1.3rem !important; line-height: 1.15 !important; }
+  .step .subtitle { margin-top: 2px; }
+  .step [style*="grid-template-columns: 1fr 1fr 1.5fr"] { grid-template-columns: 1fr !important; }
 }
 
 /* ====== Links ====== */
@@ -717,3 +724,12 @@ a:hover {
 
 /* Remove old App.css leakage */
 #root { min-height: 100vh; isolation: isolate; }
+
+
+/* Fix: step header stacking on very narrow mobile (~390px) */
+@media (max-width: 420px) {
+  .step > div:first-child { flex-direction: column !important; align-items: center !important; text-align: center; gap: 10px !important; }
+  .step h1 { font-size: 1.25rem !important; }
+  .step .subtitle { font-size: 0.88rem; text-align: center; }
+  .wizard-card { padding: 20px 16px !important; }
+}

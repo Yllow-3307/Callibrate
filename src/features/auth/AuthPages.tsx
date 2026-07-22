@@ -26,64 +26,34 @@ function AuthLayout({ title, subtitle, children, footer }: { title: string; subt
         transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
       >
         <CardHeader>
-          <motion.p
-            className="eyebrow"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1, duration: 0.4 }}
-          >
+          <motion.p className="eyebrow" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.4 }}>
             CALLIBRATE
           </motion.p>
-          <motion.h1
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15, duration: 0.45 }}
-          >
+          <motion.h1 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.45 }}>
             {title}
           </motion.h1>
           {subtitle && (
-            <motion.p
-              className="subtitle"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.22, duration: 0.45 }}
-            >
+            <motion.p className="subtitle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.22, duration: 0.45 }}>
               {subtitle}
             </motion.p>
           )}
         </CardHeader>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25, duration: 0.45 }}
-        >
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.45 }}>
           {children}
         </motion.div>
 
-        <motion.p
-          className="auth-footer"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.35, duration: 0.4 }}
-        >
+        <motion.p className="auth-footer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35, duration: 0.4 }}>
           {footer}
         </motion.p>
       </motion.section>
 
-      {/* Decorative warm accent dot - only in dark mode visible subtle */}
       <div
         aria-hidden
         style={{
-          position: 'fixed',
-          bottom: '6%',
-          left: '8%',
-          width: 140,
-          height: 140,
+          position: 'fixed', bottom: '6%', left: '8%', width: 140, height: 140,
           background: 'radial-gradient(circle, rgba(var(--color-accent-warm-rgb),0.22), transparent 70%)',
-          filter: 'blur(18px)',
-          pointerEvents: 'none',
-          zIndex: -1,
+          filter: 'blur(18px)', pointerEvents: 'none', zIndex: -1,
         }}
       />
     </main>
@@ -120,63 +90,33 @@ export function SignUpPage() {
         <div style={{ display: 'grid', gap: 14 }}>
           <label>
             Adresse e-mail
-            <input
-              className="input-base"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              placeholder="toi@exemple.com"
-            />
+            <input className="input-base" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" placeholder="toi@exemple.com" />
           </label>
           <label>
             Mot de passe
-            <input
-              className="input-base"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              autoComplete="new-password"
-              placeholder="••••••••"
-            />
+            <input className="input-base" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} autoComplete="new-password" placeholder="••••••••" />
             <small>6 caractères minimum, avec un peu de peps</small>
           </label>
         </div>
-
         <AnimatePresence mode="wait">
-          {error && (
-            <motion.p
-              className="form-error"
-              role="alert"
-              initial={{ opacity: 0, y: -6, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.28 }}
-            >
-              {error}
-            </motion.p>
-          )}
-          {info && (
-            <motion.p
-              className="form-info"
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-            >
-              {info}
-            </motion.p>
-          )}
+          {error && <motion.p className="form-error" role="alert" initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.28 }}>{error}</motion.p>}
+          {info && <motion.p className="form-info" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>{info}</motion.p>}
         </AnimatePresence>
-
         <Button type="submit" variant="primary" size="lg" disabled={submitting} isLoading={submitting} style={{ width: '100%', marginTop: 6 }}>
           {submitting ? 'Création…' : 'Créer mon compte'}
         </Button>
       </form>
     </AuthLayout>
   )
+}
+
+/** Vérifie si l'utilisateur a déjà un profil complet et un programme généré. */
+async function hasCompletedProfile(userId: string): Promise<boolean> {
+  const [profileResult, programResult] = await Promise.all([
+    supabase.from('profiles').select('id').eq('user_id', userId).limit(1).maybeSingle(),
+    supabase.from('programs').select('id').eq('user_id', userId).limit(1).maybeSingle(),
+  ])
+  return Boolean(profileResult.data && programResult.data)
 }
 
 export function SignInPage() {
@@ -187,14 +127,26 @@ export function SignInPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  if (user) return <Navigate to={(location.state as { from?: string } | null)?.from || '/onboarding'} replace />
+
+  if (user) {
+    const from = (location.state as { from?: string } | null)?.from
+    if (from) return <Navigate to={from} replace />
+    return <Navigate to="/onboarding" replace />
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault(); setError(''); setSubmitting(true)
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
     setSubmitting(false)
     if (signInError) { setError(readableAuthError(signInError.message)); return }
-    navigate((location.state as { from?: string } | null)?.from || '/onboarding', { replace: true })
+    const from = (location.state as { from?: string } | null)?.from
+    if (from) { navigate(from, { replace: true }); return }
+    if (data.user) {
+      const complete = await hasCompletedProfile(data.user.id)
+      navigate(complete ? '/tableau-de-bord' : '/onboarding', { replace: true })
+      return
+    }
+    navigate('/onboarding', { replace: true })
   }
 
   return (
@@ -207,44 +159,16 @@ export function SignInPage() {
         <div style={{ display: 'grid', gap: 14 }}>
           <label>
             Adresse e-mail
-            <input
-              className="input-base"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              placeholder="toi@exemple.com"
-            />
+            <input className="input-base" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" placeholder="toi@exemple.com" />
           </label>
           <label>
             Mot de passe
-            <input
-              className="input-base"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              placeholder="••••••••"
-            />
+            <input className="input-base" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" placeholder="••••••••" />
           </label>
         </div>
-
         <AnimatePresence>
-          {error && (
-            <motion.p
-              className="form-error"
-              role="alert"
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-            >
-              {error}
-            </motion.p>
-          )}
+          {error && <motion.p className="form-error" role="alert" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>{error}</motion.p>}
         </AnimatePresence>
-
         <Button type="submit" variant="primary" size="lg" disabled={submitting} isLoading={submitting} style={{ width: '100%', marginTop: 6 }}>
           {submitting ? 'Connexion…' : 'Se connecter'}
         </Button>
