@@ -1,14 +1,53 @@
+import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { SignInPage, SignUpPage } from './features/auth/AuthPages'
 import { ProtectedRoute } from './features/auth/ProtectedRoute'
 import { useAuth } from './features/auth/useAuth'
+import { useAuthStore } from './features/auth/authStore'
 import { OnboardingWizard } from './features/onboarding/OnboardingWizard'
+import { generateAndSaveProgram } from './features/program-engine/generateAndSaveProgram'
 import { ThemeToggle } from './shared/components/ThemeToggle'
 import { motion } from 'framer-motion'
 import { Button } from './shared/components'
 
+/**
+ * Écran de transition post-onboarding : lance la génération du programme
+ * (moteur de règles déterministe), écrit le résultat en base, puis redirige
+ * vers le tableau de bord.
+ */
 function ThankYouPage() {
   const navigate = useNavigate()
+  const user = useAuthStore((state) => state.user)
+  const [statut, setStatut] = useState<'generation' | 'pret' | 'erreur'>('generation')
+  const [messageErreur, setMessageErreur] = useState('')
+  const [tentative, setTentative] = useState(0)
+
+  useEffect(() => {
+    if (!user) return
+    let actif = true
+    setStatut('generation')
+    setMessageErreur('')
+
+    generateAndSaveProgram(user.id)
+      .then(() => {
+        if (!actif) return
+        setStatut('pret')
+      })
+      .catch((erreur: unknown) => {
+        if (!actif) return
+        setStatut('erreur')
+        setMessageErreur(erreur instanceof Error ? erreur.message : 'Une erreur est survenue pendant la génération.')
+      })
+
+    return () => { actif = false }
+  }, [user, tentative])
+
+  useEffect(() => {
+    if (statut !== 'pret') return
+    const timer = window.setTimeout(() => navigate('/tableau-de-bord', { replace: true }), 1600)
+    return () => window.clearTimeout(timer)
+  }, [statut, navigate])
+
   return (
     <main className="center-page">
       <ThemeToggle />
@@ -34,23 +73,60 @@ function ThankYouPage() {
             color: 'rgb(var(--color-accent-rgb))',
           }}
         >
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20 6L9 17l-5-5" />
-          </svg>
+          {statut === 'generation' && (
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+              style={{
+                width: 26,
+                height: 26,
+                border: '3px solid var(--color-border-strong)',
+                borderTopColor: 'rgb(var(--color-accent-rgb))',
+                borderRadius: '50%',
+              }}
+            />
+          )}
+          {statut !== 'generation' && (
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              {statut === 'pret' ? <path d="M20 6L9 17l-5-5" /> : <path d="M12 8v5M12 16.5v.5M10.3 3.9 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />}
+            </svg>
+          )}
         </motion.div>
-        <p className="eyebrow">C'EST PARTI</p>
+        <p className="eyebrow">{statut === 'pret' ? "C'EST PRÊT" : "C'EST PARTI"}</p>
         <h1 className="text-balance" style={{ marginBottom: 12 }}>Merci !</h1>
-        <p className="subtitle" style={{ marginBottom: 28 }}>
-          Ton profil est enregistré, ton programme est en cours de préparation.
-          <br />
-          <span style={{ color: 'rgb(var(--color-accent-warm-rgb))', fontWeight: 650 }}>On s'occupe du reste.</span>
-        </p>
-        <Button variant="primary" size="lg" onClick={() => navigate('/tableau-de-bord')}>
-          Continuer
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12h14M12 5l7 7-7 7" />
-          </svg>
-        </Button>
+        {statut === 'generation' && (
+          <p className="subtitle" style={{ marginBottom: 28 }}>
+            Ton profil est enregistré. On construit ton programme : séances, phases,
+            cibles nutritionnelles et hydratation.
+            <br />
+            <span style={{ color: 'rgb(var(--color-accent-warm-rgb))', fontWeight: 650 }}>On s'occupe du reste.</span>
+          </p>
+        )}
+        {statut === 'pret' && (
+          <p className="subtitle" style={{ marginBottom: 28 }}>
+            Ton programme est généré et enregistré. Redirection vers ton tableau de bord…
+            <br />
+            <span style={{ color: 'rgb(var(--color-accent-warm-rgb))', fontWeight: 650 }}>À tout de suite.</span>
+          </p>
+        )}
+        {statut === 'erreur' && (
+          <>
+            <p className="subtitle" style={{ marginBottom: 12 }}>
+              La génération de ton programme n'a pas abouti.
+            </p>
+            <p className="form-error" role="alert" style={{ marginBottom: 28 }}>{messageErreur}</p>
+          </>
+        )}
+        {statut === 'erreur' && (
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Button variant="primary" size="lg" onClick={() => setTentative((valeur) => valeur + 1)}>
+              Réessayer
+            </Button>
+            <Button variant="secondary" size="lg" onClick={() => navigate('/tableau-de-bord')}>
+              Continuer sans programme
+            </Button>
+          </div>
+        )}
       </motion.section>
     </main>
   )
