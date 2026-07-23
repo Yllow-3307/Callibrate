@@ -740,6 +740,21 @@ a:hover {
   .wizard-card .step { min-width: 0; }
   .wizard-card label { min-width: 0; }
   .input-base, .form-input { max-width: 100%; box-sizing: border-box; padding: 8px 10px; font-size: 0.92rem; min-height: 40px; }
+  /* Limit lengths of form controls so they fit inside the card without being cut or overflowing */
+  .wizard-card .step label { justify-items: start; }
+  .wizard-card .step label .input-base,
+  .wizard-card .step label .form-input {
+    width: 100%;
+    max-width: 260px; /* cap width so inputs don't overflow the card */
+  }
+  /* Allow textareas and long selects to remain full-width */
+  .wizard-card .step label textarea.input-base,
+  .wizard-card .step label textarea.form-input,
+  .wizard-card .step label select.input-base,
+  .wizard-card .step label select.form-input {
+    max-width: 100%;
+    width: 100%;
+  }
 }
 /* ============================================================
    Layout desktop (sidebar + carte) + sous-sections d'onboarding
