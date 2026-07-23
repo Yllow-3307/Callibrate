@@ -15,3 +15,9 @@ ALTER TABLE public.equipment
   USING CASE WHEN equipement_endurance IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(equipement_endurance) END;
 
 ALTER TABLE public.equipment ALTER COLUMN equipement_endurance SET DEFAULT '[]'::jsonb;
+
+ALTER TABLE public.equipment
+  ALTER COLUMN type TYPE jsonb
+  USING CASE WHEN type IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(type) END;
+
+ALTER TABLE public.equipment ALTER COLUMN type SET DEFAULT '[]'::jsonb;

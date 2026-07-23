@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useAuthStore } from './authStore'
+import { useAuthStore } from '../store/authStore'
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuthStore()

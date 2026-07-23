@@ -22,9 +22,9 @@ CREATE TABLE public.goals (
 CREATE TABLE public.equipment (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  type text,
-  details_perso text,
-  equipement_endurance text,
+  type jsonb DEFAULT '[]'::jsonb,
+  details_perso jsonb DEFAULT '[]'::jsonb,
+  equipement_endurance jsonb DEFAULT '[]'::jsonb,
   created_at timestamp with time zone DEFAULT now()
 );
 

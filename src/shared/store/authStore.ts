@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '../../shared/lib/supabaseClient'
 
-type AuthState = {
+export type AuthState = {
   user: User | null
   loading: boolean
   initialise: () => () => void
