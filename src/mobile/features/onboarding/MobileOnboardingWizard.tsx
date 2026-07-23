@@ -28,6 +28,40 @@ export default function MobileOnboardingWizard() {
   return (
     <main className="wizard-page">
       <ThemeToggle />
+
+      <AnimatePresence>
+        {saving && (
+          <motion.div
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md text-white"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+              style={{
+                width: 50,
+                height: 50,
+                border: '4px solid rgba(255, 255, 255, 0.2)',
+                borderTopColor: 'rgb(var(--color-accent-rgb))',
+                borderRadius: '50%',
+                marginBottom: 20,
+              }}
+            />
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-lg font-semibold text-center px-6"
+            >
+              Génération de ton programme personnalisé...
+            </motion.p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <motion.section className="glass-card wizard-card" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
         <h2>Personnalisation</h2>
         <p>Étape {step} / 5</p>
