@@ -735,11 +735,11 @@ a:hover {
   .step h1 { font-size: 1.25rem !important; }
   .step .subtitle { font-size: 0.88rem; text-align: center; }
   .wizard-card { padding: 20px 16px !important; }
-  /* Prevent form controls from overflowing the glass card on narrow viewports */
-  .wizard-card { box-sizing: border-box; max-width: 100%; overflow-x: hidden; }
+  /* Ensure form controls fit inside the card on narrow viewports */
+  .wizard-card { box-sizing: border-box; max-width: 100%; overflow-x: visible; padding-left: 12px !important; padding-right: 12px !important; }
   .wizard-card .step { min-width: 0; }
   .wizard-card label { min-width: 0; }
-  .input-base, .form-input { max-width: 100%; box-sizing: border-box; }
+  .input-base, .form-input { max-width: 100%; box-sizing: border-box; padding: 8px 10px; font-size: 0.92rem; min-height: 40px; }
 }
 /* ============================================================
    Layout desktop (sidebar + carte) + sous-sections d'onboarding
