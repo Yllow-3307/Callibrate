@@ -47,20 +47,20 @@ export default function DesktopOnboardingWizard() {
                 <div>
                   <h3>Parle-nous de toi</h3>
                   <div className="grid-2 desktop-grid">
-                    <label>Âge<input type="number" min="12" value={data.age} onChange={(e) => set('age', e.target.value)} placeholder="25" /></label>
+                    <label>Âge<input className="input-base" type="number" min="12" value={data.age} onChange={(e) => set('age', e.target.value)} placeholder="25" /></label>
                     <label>Sexe
-                      <select value={data.sexe} onChange={(e) => set('sexe', e.target.value)}>
+                      <select className="input-base" value={data.sexe} onChange={(e) => set('sexe', e.target.value)}>
                         <option value="">Choisir…</option>
                         <option>Femme</option>
                         <option>Homme</option>
                         <option>Non précisé</option>
                       </select>
                     </label>
-                    <label>Poids (kg)<input type="number" min="1" step="0.1" value={data.poids} onChange={(e) => set('poids', e.target.value)} placeholder="70" /></label>
-                    <label>Taille (cm)<input type="number" min="50" value={data.taille} onChange={(e) => set('taille', e.target.value)} placeholder="175" /></label>
+                    <label>Poids (kg)<input className="input-base" type="number" min="1" step="0.1" value={data.poids} onChange={(e) => set('poids', e.target.value)} placeholder="70" /></label>
+                    <label>Taille (cm)<input className="input-base" type="number" min="50" value={data.taille} onChange={(e) => set('taille', e.target.value)} placeholder="175" /></label>
                   </div>
                   <label>Niveau en sport
-                    <select value={data.niveauSport} onChange={(e) => set('niveauSport', e.target.value)}>
+                    <select className="input-base" value={data.niveauSport} onChange={(e) => set('niveauSport', e.target.value)}>
                       <option value="">Choisir…</option>
                       <option>Débutant</option>
                       <option>Intermédiaire</option>
@@ -142,21 +142,22 @@ export default function DesktopOnboardingWizard() {
                 <div>
                   <h3>Ton rythme de vie</h3>
                   <div className="grid-2 desktop-grid">
-                    <label>Heure de réveil<input type="time" value={data.reveil} onChange={(e) => set('reveil', e.target.value)} /></label>
-                    <label>Début du travail<input type="time" value={data.travailDebut} onChange={(e) => set('travailDebut', e.target.value)} /></label>
-                    <label>Fin du travail<input type="time" value={data.travailFin} onChange={(e) => set('travailFin', e.target.value)} /></label>
-                    <label>Heure de coucher<input type="time" value={data.coucher} onChange={(e) => set('coucher', e.target.value)} /></label>
+                    <label>Heure de réveil<input className="input-base" type="time" value={data.reveil} onChange={(e) => set('reveil', e.target.value)} /></label>
+                    <label>Début du travail<input className="input-base" type="time" value={data.travailDebut} onChange={(e) => set('travailDebut', e.target.value)} /></label>
+                    <label>Fin du travail<input className="input-base" type="time" value={data.travailFin} onChange={(e) => set('travailFin', e.target.value)} /></label>
+                    <label>Heure de coucher<input className="input-base" type="time" value={data.coucher} onChange={(e) => set('coucher', e.target.value)} /></label>
                   </div>
                   <label>Préférence pour le sport
-                    <select value={data.preferenceHoraire} onChange={(e) => set('preferenceHoraire', e.target.value)}>
+                    <select className="input-base" value={data.preferenceHoraire} onChange={(e) => set('preferenceHoraire', e.target.value)}>
+                      <option value="">Choisir…</option>
                       <option>Matin</option>
                       <option>Soir</option>
                       <option>Variable selon les jours</option>
                     </select>
                   </label>
                   <div className="grid-2 desktop-grid">
-                    <label>Durée souhaitée (minutes)<input type="number" min="1" step="1" pattern="[0-9]*" inputMode="numeric" value={data.duree} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); set('duree', v) }} placeholder="45" /></label>
-                    <label>Séances par semaine<input type="number" min="1" max="7" value={data.frequence} onChange={(e) => set('frequence', e.target.value)} placeholder="4" /></label>
+                    <label>Durée souhaitée (minutes)<input className="input-base" type="number" min="1" step="1" pattern="[0-9]*" inputMode="numeric" value={data.duree} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); set('duree', v) }} placeholder="45" /></label>
+                    <label>Séances par semaine<input className="input-base" type="number" min="1" max="7" value={data.frequence} onChange={(e) => set('frequence', e.target.value)} placeholder="4" /></label>
                   </div>
                 </div>
               )}
@@ -165,18 +166,45 @@ export default function DesktopOnboardingWizard() {
                   <h3>Côté cuisine</h3>
                   <div className="grid-2 desktop-grid">
                     <label>Niveau en cuisine
-                      <select value={data.niveauCuisine} onChange={(e) => set('niveauCuisine', e.target.value)}>
+                      <select className="input-base" value={data.niveauCuisine} onChange={(e) => set('niveauCuisine', e.target.value)}>
+                        <option value="">Choisir…</option>
                         <option>Débutant</option>
                         <option>Intermédiaire</option>
                         <option>Avancé</option>
                         <option>Pro</option>
                       </select>
                     </label>
-                    <label>Temps par repas (minutes)<input type="number" min="1" value={data.tempsCuisine} onChange={(e) => set('tempsCuisine', e.target.value)} placeholder="20" /></label>
+                    <label>Temps par repas (minutes)<input className="input-base" type="number" min="1" value={data.tempsCuisine} onChange={(e) => set('tempsCuisine', e.target.value)} placeholder="20" /></label>
                   </div>
-                  <label>Préférences alimentaires<textarea value={data.preferences} onChange={(e) => set('preferences', e.target.value)} placeholder="Ex. végétarien, sans porc…" /></label>
-                  <label>Allergies<textarea value={data.allergies} onChange={(e) => set('allergies', e.target.value)} placeholder="Indique-les si nécessaire" /></label>
-                  <label>Budget<input value={data.budget} onChange={(e) => set('budget', e.target.value)} placeholder="Ex. serré, moyen, flexible" /></label>
+                  <label>Préférences alimentaires<textarea className="input-base" value={data.preferences} onChange={(e) => set('preferences', e.target.value)} placeholder="Ex. végétarien, sans porc…" /></label>
+                  <label>Allergies<textarea className="input-base" value={data.allergies} onChange={(e) => set('allergies', e.target.value)} placeholder="Indique-les si nécessaire" /></label>
+                  <label>Budget<input className="input-base" value={data.budget} onChange={(e) => set('budget', e.target.value)} placeholder="Ex. serré, moyen, flexible" /></label>
+                  <div className="grid-3">
+                    <label>Petit-déjeuner
+                      <select className="input-base" value={data.petitDejeuner} onChange={(e) => set('petitDejeuner', e.target.value)}>
+                        <option value="">Choisir…</option>
+                        <option>Maison</option>
+                        <option>Cantine</option>
+                        <option>Restaurant</option>
+                      </select>
+                    </label>
+                    <label>Déjeuner
+                      <select className="input-base" value={data.dejeuner} onChange={(e) => set('dejeuner', e.target.value)}>
+                        <option value="">Choisir…</option>
+                        <option>Maison</option>
+                        <option>Cantine</option>
+                        <option>Restaurant</option>
+                      </select>
+                    </label>
+                    <label>Dîner
+                      <select className="input-base" value={data.diner} onChange={(e) => set('diner', e.target.value)}>
+                        <option value="">Choisir…</option>
+                        <option>Maison</option>
+                        <option>Cantine</option>
+                        <option>Restaurant</option>
+                      </select>
+                    </label>
+                  </div>
                 </div>
               )}
             </motion.div>
