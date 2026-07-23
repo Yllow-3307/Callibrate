@@ -1,5 +1,10 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useOnboardingLogic, equipmentChoices } from '../../../shared/hooks/useOnboardingLogic'
+import {
+  useOnboardingLogic,
+  equipmentChoices,
+  personalEquipmentOptions,
+  enduranceOptions,
+} from '../../../shared/hooks/useOnboardingLogic'
 import { Button } from '../../../shared/components/Button'
 import { ThemeToggle } from '../../../shared/components/ThemeToggle'
 
@@ -17,7 +22,7 @@ export default function MobileOnboardingWizard() {
   const {
     step, data, error, saving,
     set, next, prev, save,
-    toggleEquipment,
+    toggleEquipment, togglePersonalEquipment, toggleEndurance,
   } = useOnboardingLogic()
 
   return (
@@ -67,10 +72,58 @@ export default function MobileOnboardingWizard() {
             {step === 3 && (
               <div className="step">
                 <h3>Ton équipement</h3>
+                <p className="caption" style={{ marginTop: 0, marginBottom: 12, color: 'var(--color-text-muted)' }}>
+                  Sélectionne tout ce à quoi tu as accès. Coche « Équipement personnel » pour préciser.
+                </p>
                 <div className="choice-list">
                   {equipmentChoices.map((item) => (
                     <MobileChoice key={item} value={item} checked={data.equipements.includes(item)} onChange={() => toggleEquipment(item)}>{item}</MobileChoice>
                   ))}
+                </div>
+
+                {data.equipements.includes('Équipement personnel') && (
+                  <div className="wizard-subsection">
+                    <h4>Précise ton équipement personnel</h4>
+                    <div className="choice-list">
+                      {personalEquipmentOptions.map((item) => (
+                        <MobileChoice key={item} value={item} checked={data.detailsPerso.includes(item)} onChange={() => togglePersonalEquipment(item)}>{item}</MobileChoice>
+                      ))}
+                      <MobileChoice
+                        value="__autre__"
+                        checked={data.detailsPersoAutre.trim().length > 0}
+                        onChange={() => {
+                          if (data.detailsPersoAutre.trim().length === 0) set('detailsPersoAutre', 'Autre équipement')
+                          else set('detailsPersoAutre', '')
+                        }}
+                      >
+                        Autre
+                      </MobileChoice>
+                    </div>
+                    {data.detailsPersoAutre.trim().length > 0 && (
+                      <label className="wizard-other-input">
+                        Précise « Autre »
+                        <input
+                          className="input-base"
+                          type="text"
+                          value={data.detailsPersoAutre}
+                          onChange={(e) => set('detailsPersoAutre', e.target.value)}
+                          placeholder="Ex. anneaux, sac de frappe…"
+                        />
+                      </label>
+                    )}
+                  </div>
+                )}
+
+                <div className="wizard-subsection">
+                  <h4>Équipement d'endurance</h4>
+                  <p className="caption" style={{ marginTop: 0, marginBottom: 12, color: 'var(--color-text-muted)' }}>
+                    Sélectionne tout ce que tu utilises (ou pourrais utiliser) pour le cardio.
+                  </p>
+                  <div className="choice-list">
+                    {enduranceOptions.map((item) => (
+                      <MobileChoice key={item} value={item} checked={data.endurance.includes(item)} onChange={() => toggleEndurance(item)}>{item}</MobileChoice>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

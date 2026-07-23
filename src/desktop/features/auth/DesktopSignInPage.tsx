@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../../shared/lib/supabaseClient'
 import { useAuthStore } from '../../../shared/store/authStore'
@@ -16,26 +16,61 @@ function readableAuthError(message: string) {
   return 'Une erreur est survenue. Vérifie tes informations et réessaie.'
 }
 
+function PageLoader() {
+  return (
+    <div className="page-loader">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} style={{ width: 22, height: 22, border: '2px solid var(--color-border-strong)', borderTopColor: 'rgb(var(--color-accent-rgb))', borderRadius: '50%' }} />
+        Chargement…
+      </motion.div>
+    </div>
+  )
+}
+
 export default function DesktopSignInPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
+  const loading = useAuthStore((state) => state.loading)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  if (user) {
+  // Quand une session devient active (rafraîchissement de page, retour
+  // d'onglet, ou mise à jour du store pendant submit), on redirige
+  // intelligemment en interrogeant Supabase. Cela remplace l'ancien
+  // "if (user) return <Navigate to=/onboarding />" qui court-circuitait
+  // ProfileRedirect et renvoyait aveuglément vers l'onboarding.
+  useEffect(() => {
+    if (loading || !user) return
     const from = (location.state as { from?: string } | null)?.from
-    if (from) return <Navigate to={from} replace />
-    return <Navigate to="/onboarding" replace />
+    if (from) { navigate(from, { replace: true }); return }
+    let active = true
+    hasCompletedProfile(user.id).then((complete) => {
+      if (active) navigate(complete ? '/tableau-de-bord' : '/onboarding', { replace: true })
+    })
+    return () => { active = false }
+  }, [user, loading, location.state, navigate])
+
+  // Pendant l'initialisation de la session ou quand une redirection est en
+  // cours, on affiche un loader plutôt que le formulaire.
+  if (loading || user) {
+    return (
+      <main className="auth-page desktop-auth">
+        <PageLoader />
+      </main>
+    )
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault(); setError(''); setSubmitting(true)
     const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-    setSubmitting(false)
-    if (signInError) { setError(readableAuthError(signInError.message)); return }
+    if (signInError) {
+      setSubmitting(false)
+      setError(readableAuthError(signInError.message))
+      return
+    }
     const from = (location.state as { from?: string } | null)?.from
     if (from) { navigate(from, { replace: true }); return }
     if (data.user) {

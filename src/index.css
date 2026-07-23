@@ -733,3 +733,117 @@ a:hover {
   .step .subtitle { font-size: 0.88rem; text-align: center; }
   .wizard-card { padding: 20px 16px !important; }
 }
+/* ============================================================
+   Layout desktop (sidebar + carte) + sous-sections d'onboarding
+   - Supprime puces/bordures par défaut du <ul> de la sidebar
+   - Définit la grille 2 colonnes pour le wizard desktop
+   - Définit le rendu des sous-sections (équipement perso / endurance)
+   ============================================================ */
+
+.desktop-wizard {
+  min-height: 100vh;
+  padding: 40px 32px;
+}
+
+.desktop-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 32px;
+  max-width: 1100px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+.desktop-sidebar {
+  position: sticky;
+  top: 40px;
+  padding: 24px 22px;
+  border-radius: var(--radius-lg, 20px);
+  background: var(--glass-bg, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+.desktop-sidebar h2 {
+  margin: 0 0 16px 0;
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
+}
+
+.desktop-sidebar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  border-left: 2px solid var(--color-border, rgba(255, 255, 255, 0.08));
+}
+
+.desktop-sidebar-list li {
+  list-style: none;
+  padding: 8px 0 8px 14px;
+  margin: 0;
+  font-size: 0.94rem;
+  color: var(--color-text-muted);
+  border: none;
+  border-left: 2px solid transparent;
+  margin-left: -2px;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.desktop-sidebar-list li.active {
+  color: rgb(var(--color-accent-rgb));
+  border-left-color: rgb(var(--color-accent-rgb));
+  font-weight: 600;
+}
+
+.desktop-card {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .desktop-layout {
+    grid-template-columns: 1fr;
+  }
+  .desktop-sidebar {
+    position: static;
+  }
+}
+
+/* Sous-sections dans les étapes du wizard (équipement perso, endurance) */
+.wizard-subsection {
+  margin-top: 20px;
+  padding: 18px 16px;
+  border-radius: var(--radius-md, 14px);
+  background: rgba(var(--color-surface-rgb, 255 255 255), 0.45);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+  display: grid;
+  gap: 10px;
+}
+
+.wizard-subsection h4 {
+  margin: 0;
+  font-size: 0.98rem;
+  letter-spacing: -0.01em;
+  font-weight: 650;
+}
+
+.wizard-other-input {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgb(var(--color-text-rgb));
+}
+
+.desktop-choice {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (max-width: 720px) {
+  .desktop-choice {
+    grid-template-columns: 1fr;
+  }
+}

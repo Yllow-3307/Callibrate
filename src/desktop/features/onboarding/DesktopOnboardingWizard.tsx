@@ -1,5 +1,10 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useOnboardingLogic, equipmentChoices } from '../../../shared/hooks/useOnboardingLogic'
+import {
+  useOnboardingLogic,
+  equipmentChoices,
+  personalEquipmentOptions,
+  enduranceOptions,
+} from '../../../shared/hooks/useOnboardingLogic'
 import { Button } from '../../../shared/components/Button'
 import { ThemeToggle } from '../../../shared/components/ThemeToggle'
 
@@ -17,7 +22,7 @@ export default function DesktopOnboardingWizard() {
   const {
     step, data, error, saving,
     set, next, prev, save,
-    toggleEquipment,
+    toggleEquipment, togglePersonalEquipment, toggleEndurance,
   } = useOnboardingLogic()
 
   return (
@@ -26,7 +31,7 @@ export default function DesktopOnboardingWizard() {
       <div className="desktop-layout">
         <aside className="desktop-sidebar">
           <h2>Personnalisation</h2>
-          <ul>
+          <ul className="desktop-sidebar-list">
             <li className={step >= 1 ? 'active' : ''}>Profil</li>
             <li className={step >= 2 ? 'active' : ''}>Objectif</li>
             <li className={step >= 3 ? 'active' : ''}>Équipement</li>
@@ -78,10 +83,58 @@ export default function DesktopOnboardingWizard() {
               {step === 3 && (
                 <div>
                   <h3>Ton équipement</h3>
+                  <p className="caption" style={{ marginTop: 0, marginBottom: 16, color: 'var(--color-text-muted)' }}>
+                    Sélectionne tout ce à quoi tu as accès. Coche « Équipement personnel » pour préciser.
+                  </p>
                   <div className="choice-list desktop-choice">
                     {equipmentChoices.map((item) => (
                       <DesktopChoice key={item} value={item} checked={data.equipements.includes(item)} onChange={() => toggleEquipment(item)}>{item}</DesktopChoice>
                     ))}
+                  </div>
+
+                  {data.equipements.includes('Équipement personnel') && (
+                    <div className="wizard-subsection">
+                      <h4>Précise ton équipement personnel</h4>
+                      <div className="choice-list desktop-choice">
+                        {personalEquipmentOptions.map((item) => (
+                          <DesktopChoice key={item} value={item} checked={data.detailsPerso.includes(item)} onChange={() => togglePersonalEquipment(item)}>{item}</DesktopChoice>
+                        ))}
+                        <DesktopChoice
+                          value="__autre__"
+                          checked={data.detailsPersoAutre.trim().length > 0}
+                          onChange={() => {
+                            if (data.detailsPersoAutre.trim().length === 0) set('detailsPersoAutre', 'Autre équipement')
+                            else set('detailsPersoAutre', '')
+                          }}
+                        >
+                          Autre
+                        </DesktopChoice>
+                      </div>
+                      {data.detailsPersoAutre.trim().length > 0 && (
+                        <label className="wizard-other-input">
+                          Précise « Autre »
+                          <input
+                            className="input-base"
+                            type="text"
+                            value={data.detailsPersoAutre}
+                            onChange={(e) => set('detailsPersoAutre', e.target.value)}
+                            placeholder="Ex. anneaux, sac de frappe…"
+                          />
+                        </label>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="wizard-subsection">
+                    <h4>Équipement d'endurance</h4>
+                    <p className="caption" style={{ marginTop: 0, marginBottom: 12, color: 'var(--color-text-muted)' }}>
+                      Sélectionne tout ce que tu utilises (ou pourrais utiliser) pour le cardio.
+                    </p>
+                    <div className="choice-list desktop-choice">
+                      {enduranceOptions.map((item) => (
+                        <DesktopChoice key={item} value={item} checked={data.endurance.includes(item)} onChange={() => toggleEndurance(item)}>{item}</DesktopChoice>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
